@@ -42,6 +42,39 @@ try {
 const player = new Player(camera, canvas);
 const narrative = new NarrativeEngine();
 
+// --- Guidance beacon: a glowing pillar of light over the current objective ---
+const beacon = new THREE.Group();
+const beam = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.28, 0.28, 9, 16, 1, true),
+  new THREE.MeshBasicMaterial({
+    color: 0xffd47a, transparent: true, opacity: 0.3, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  })
+);
+beam.position.y = 4.5;
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(0.7, 1.0, 28),
+  new THREE.MeshBasicMaterial({
+    color: 0xffd47a, transparent: true, opacity: 0.6, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  })
+);
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = 0.06;
+beacon.add(beam, ring);
+beacon.visible = false;
+scene.add(beacon);
+
+const INTERACT_RANGE = 5.0; // walk this close to interact — no precise aiming needed
+function nearestInteractable() {
+  let best = null, bestD = INTERACT_RANGE;
+  for (const o of interactables) {
+    const d = Math.hypot(o.position.x - player.position.x, o.position.z - player.position.z);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  return best;
+}
+
 // Post-processing: MSAA render target + a gentle bloom for the gold/light.
 const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: 4 });
 const composer = new EffectComposer(renderer, renderTarget);
@@ -130,9 +163,9 @@ function tick(now) {
     world.update(now * 0.001, dt);        // palm sway + drifting dust
   } catch (err) { /* never let an animation hiccup halt the loop */ }
 
-  // Gaze: highlight interactables and show the prompt.
+  // Interaction target: walk-up (proximity) first, aiming as a fallback.
   if (started && player.enabled) {
-    lookedAt = player.getLookedAt(interactables);
+    lookedAt = nearestInteractable() || player.getLookedAt(interactables);
     if (lookedAt) {
       crosshair.classList.add("active");
       prompt.classList.remove("hidden");
@@ -148,6 +181,19 @@ function tick(now) {
     lookedAt = null;
     crosshair.classList.remove("active");
     prompt.classList.add("hidden");
+  }
+
+  // Guidance beacon over the current objective target.
+  const targetId = started && mission.getActiveTargetId && mission.getActiveTargetId();
+  const targetObj = targetId && interactables.find((o) => o.userData.id === targetId);
+  if (targetObj) {
+    beacon.visible = true;
+    beacon.position.set(targetObj.position.x, 0, targetObj.position.z);
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.004);
+    beam.material.opacity = 0.18 + pulse * 0.22;
+    ring.scale.setScalar(1 + pulse * 0.3);
+  } else {
+    beacon.visible = false;
   }
 
   // "Click to look around" hint when the mouse isn't captured mid-game.

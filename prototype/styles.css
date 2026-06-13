@@ -71,11 +71,21 @@ kbd {
 }
 
 #clickHint {
-  position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
-  background: var(--panel); border: 1px solid rgba(201,164,92,0.4); border-radius: 8px;
-  padding: 10px 20px; font-size: 16px; color: var(--gold); animation: hintPulse 1.6s ease-in-out infinite;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--panel); border: 1px solid rgba(201,164,92,0.5); border-radius: 12px;
+  padding: 22px 34px; text-align: center; color: var(--gold);
+  animation: hintPulse 1.4s ease-in-out infinite;
 }
-@keyframes hintPulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
+#clickHint .ch-big { font-size: 26px; letter-spacing: 1px; }
+#clickHint .ch-sub { font-size: 16px; opacity: 0.8; margin-top: 8px; color: #f3ead6; }
+@keyframes hintPulse { 0%,100% { opacity: 0.75; } 50% { opacity: 1; } }
+
+#controls {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid rgba(201,164,92,0.3); border-radius: 8px;
+  padding: 7px 16px; font-size: 13px; color: #e8dcc0; white-space: nowrap;
+}
+#controls kbd { margin: 0 1px; }
 
 /* Narration */
 #narration {

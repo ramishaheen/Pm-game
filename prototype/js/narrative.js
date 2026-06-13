@@ -15,12 +15,21 @@ export class NarrativeEngine {
     this._fullText = "";
 
     document.addEventListener("keydown", (e) => {
-      if (e.code === "Space" && this.box.classList.contains("visible-narr")) {
+      if ((e.code === "Space" || e.code === "Enter") && this.box.classList.contains("visible-narr")) {
         e.preventDefault();
-        if (this._typing) { this._finishTyping(); }
-        else if (this._resolveAdvance) { const r = this._resolveAdvance; this._resolveAdvance = null; r(); }
+        this._advance();
       }
     });
+    // Clicking the narration box also advances (more discoverable than Space).
+    this.box.addEventListener("click", (e) => {
+      if (e.target.closest(".choice")) return; // don't swallow choice clicks
+      this._advance();
+    });
+  }
+
+  _advance() {
+    if (this._typing) { this._finishTyping(); }
+    else if (this._resolveAdvance) { const r = this._resolveAdvance; this._resolveAdvance = null; r(); }
   }
 
   _show() { this.box.classList.remove("hidden"); this.box.classList.add("visible-narr"); }

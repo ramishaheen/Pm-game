@@ -14,6 +14,16 @@ export class AlAminMission {
 
   setObjective(text) { this.objEl.textContent = text; }
 
+  // Which interactable the player should head to right now (drives the beacon).
+  getActiveTargetId() {
+    if (this.state === "gather") {
+      if (!this.heard.elder_a) return "elder_a";
+      if (!this.heard.elder_b) return "elder_b";
+    }
+    if (this.state === "decide") return "stone";
+    return null;
+  }
+
   async start() {
     this.busy = true;
     await this.n.say({ prophet: true,
@@ -27,7 +37,7 @@ export class AlAminMission {
     });
     this.n.hide();
     this.state = "gather";
-    this.setObjective("Hear each clan. Look at an elder and press E.");
+    this.setObjective("Walk to the glowing light and press E to hear a clan (hear both).");
     this.busy = false;
   }
 
@@ -54,7 +64,7 @@ export class AlAminMission {
 
       if (this.heard.elder_a && this.heard.elder_b) {
         this.state = "decide";
-        this.setObjective("You have heard them all. Approach the Black Stone (press E) to give your judgment.");
+        this.setObjective("Now walk to the glowing light (the Black Stone) and press E to give your judgment.");
       }
       return;
     }
