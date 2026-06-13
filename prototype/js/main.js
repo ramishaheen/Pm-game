@@ -25,15 +25,19 @@ const world = buildWorld();
 const { scene, interactables, mixers } = world;
 
 // Image-based lighting: bake an environment map from the sky so PBR materials
-// receive realistic ambient light and subtle reflections.
-const pmrem = new THREE.PMREMGenerator(renderer);
-{
+// receive realistic ambient light and subtle reflections. Wrapped defensively
+// so a GPU/driver hiccup here can never block the game from starting.
+try {
+  const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
   scene.remove(world.sky);
   envScene.add(world.sky);
   scene.environment = pmrem.fromScene(envScene).texture;
   envScene.remove(world.sky);
   scene.add(world.sky);
+  pmrem.dispose();
+} catch (err) {
+  console.warn("[Nūr] environment-lighting bake skipped:", err);
 }
 const player = new Player(camera, canvas);
 const narrative = new NarrativeEngine();
@@ -121,8 +125,10 @@ function tick(now) {
 
   syncControlState();
   player.update(dt);
-  for (const m of mixers) m.update(dt); // drive character idle animations
-  world.update(now * 0.001, dt);        // palm sway + drifting dust
+  try {
+    for (const m of mixers) m.update(dt); // drive character idle animations
+    world.update(now * 0.001, dt);        // palm sway + drifting dust
+  } catch (err) { /* never let an animation hiccup halt the loop */ }
 
   // Gaze: highlight interactables and show the prompt.
   if (started && player.enabled) {

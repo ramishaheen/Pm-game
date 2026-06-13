@@ -5,6 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nūr — Prototype: "Al-Amīn"</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Visible error catcher: surfaces any startup error on screen for debugging. -->
+  <script>
+    (function () {
+      function showFatal(msg) {
+        var d = document.getElementById("fatal");
+        if (!d) {
+          d = document.createElement("div");
+          d.id = "fatal";
+          d.style.cssText =
+            "position:fixed;inset:0;z-index:99999;background:rgba(35,0,0,.95);color:#ffdada;" +
+            "font:13px/1.5 monospace;padding:22px;white-space:pre-wrap;overflow:auto";
+          (document.body || document.documentElement).appendChild(d);
+          d.textContent = "⚠ A startup error occurred — please send this text:\n\n";
+        }
+        d.textContent += msg + "\n";
+      }
+      addEventListener("error", function (e) {
+        showFatal((e.message || "error") +
+          (e.filename ? "\n  at " + e.filename + ":" + e.lineno + ":" + e.colno : ""));
+      });
+      addEventListener("unhandledrejection", function (e) {
+        var r = e.reason;
+        showFatal("Promise rejection: " + ((r && r.stack) || (r && r.message) || r));
+      });
+    })();
+  </script>
   <!-- Three.js as an ES module via import map; no build step required. -->
   <script type="importmap">
   {
