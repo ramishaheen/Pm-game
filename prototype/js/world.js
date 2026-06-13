@@ -14,7 +14,44 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const CHARACTER_MODEL_URL =
   "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Soldier.glb";
 
+// Optional real palm/tree model. Empty by default (no reliable free, CORS-
+// enabled palm .glb to reference blind) → improved procedural palms are used.
+// Paste a .glb URL here and addPalms() will load it once and scatter clones,
+// auto-fitting to ~7 m and anchoring to the ground; on failure it falls back
+// to the procedural palm so the scene is never empty.
+const PALM_MODEL_URL = "";
+
 const gltfLoader = new GLTFLoader();
+
+// Scatter palms across the given [x,z] positions. Uses a real model if
+// PALM_MODEL_URL is set, otherwise the procedural makePalm().
+function addPalms(parent, spots) {
+  if (!PALM_MODEL_URL) {
+    spots.forEach(([x, z]) => parent.add(makePalm(x, z)));
+    return;
+  }
+  // Placeholders first, so something is there immediately.
+  const placeholders = spots.map(([x, z]) => {
+    const p = makePalm(x, z); parent.add(p); return p;
+  });
+  gltfLoader.load(PALM_MODEL_URL, (gltf) => {
+    const base = gltf.scene;
+    base.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    let box = new THREE.Box3().setFromObject(base);
+    const size = box.getSize(new THREE.Vector3());
+    base.scale.setScalar(7 / (size.y || 1));
+    spots.forEach(([x, z], i) => {
+      parent.remove(placeholders[i]);
+      const tree = base.clone();
+      const b = new THREE.Box3().setFromObject(tree);
+      tree.position.set(x, -b.min.y, z);
+      tree.rotation.y = Math.random() * Math.PI * 2;
+      parent.add(tree);
+    });
+  }, undefined, (err) => {
+    console.warn("[Nūr] palm model failed to load; using procedural palms.", err);
+  });
+}
 
 export function buildWorld() {
   const scene = new THREE.Scene();
@@ -109,15 +146,22 @@ export function buildWorld() {
   band.castShadow = true;
   scene.add(band);
 
-  // --- Palms and rocks ---
+  // --- Palms, rocks, shrubs ---
   const flora = new THREE.Group();
+  const palmSpots = [];
   for (let i = 0; i < 22; i++) {
     const x = (Math.random() - 0.5) * 150, z = (Math.random() - 0.5) * 150;
     if (Math.hypot(x, z) < 14) continue; // keep the plaza clear
-    flora.add(makePalm(x, z));
+    palmSpots.push([x, z]);
   }
-  for (let i = 0; i < 30; i++) {
+  addPalms(flora, palmSpots);
+  for (let i = 0; i < 34; i++) {
     flora.add(makeRock((Math.random() - 0.5) * 160, (Math.random() - 0.5) * 160));
+  }
+  for (let i = 0; i < 40; i++) {
+    const x = (Math.random() - 0.5) * 150, z = (Math.random() - 0.5) * 150;
+    if (Math.hypot(x, z) < 12) continue;
+    flora.add(makeShrub(x, z));
   }
   scene.add(flora);
 
@@ -223,41 +267,112 @@ function clothTexture() {
   return t;
 }
 
+const PALM_BARK = new THREE.MeshStandardMaterial({ color: 0x7a5a33, roughness: 1 });
+const PALM_LEAF = new THREE.MeshStandardMaterial({ color: 0x55732f, roughness: 0.8, side: THREE.DoubleSide });
+
 function makePalm(x, z) {
   const g = new THREE.Group();
   const h = 5 + Math.random() * 2.5;
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.22, 0.4, h, 8),
-    new THREE.MeshStandardMaterial({ color: 0x6e5230, roughness: 1 })
-  );
-  trunk.position.y = h / 2; trunk.castShadow = true;
-  trunk.rotation.z = (Math.random() - 0.5) * 0.15;
-  g.add(trunk);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f6b2e, roughness: 0.85, side: THREE.DoubleSide });
-  for (let i = 0; i < 9; i++) {
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.4, 4), leafMat);
-    leaf.position.y = h;
-    leaf.rotation.z = Math.PI / 2.6 + (Math.random() - 0.5) * 0.2;
-    leaf.rotation.y = (i / 9) * Math.PI * 2;
-    leaf.translateY(1.5);
-    leaf.castShadow = true;
-    g.add(leaf);
+  const lean = (Math.random() - 0.5) * 0.5;
+
+  // Curved trunk: stacked tapering segments that accumulate a gentle lean,
+  // with ring "scars" for bark relief.
+  const segs = 6;
+  let prevY = 0, tilt = 0;
+  for (let i = 0; i < segs; i++) {
+    const t = i / segs;
+    const segH = h / segs;
+    const rTop = 0.34 - t * 0.16, rBot = 0.36 - t * 0.16;
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, segH, 9), PALM_BARK);
+    tilt += lean / segs;
+    seg.position.set(Math.sin(tilt) * (prevY + segH / 2) * 0.12, prevY + segH / 2, 0);
+    seg.rotation.z = -tilt;
+    seg.castShadow = true;
+    g.add(seg);
+    prevY += segH;
   }
+  const topX = Math.sin(tilt) * h * 0.12, topY = prevY;
+  const crown = new THREE.Group();
+  crown.position.set(topX, topY, 0);
+  crown.rotation.z = -tilt;
+
+  // Drooping fronds built as curved tapering strips.
+  const n = 11;
+  for (let i = 0; i < n; i++) {
+    const frond = new THREE.Mesh(frondGeometry(3.0 + Math.random() * 0.8), PALM_LEAF);
+    frond.rotation.y = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+    frond.rotation.z = 0.5 + Math.random() * 0.2; // lift then droop (curve does the droop)
+    frond.castShadow = true;
+    crown.add(frond);
+  }
+  // A few date clusters.
+  const dateMat = new THREE.MeshStandardMaterial({ color: 0x6b3b1f, roughness: 0.7 });
+  for (let i = 0; i < 2; i++) {
+    const dates = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), dateMat);
+    dates.scale.set(0.7, 1.3, 0.7);
+    dates.position.set(Math.cos(i * 3) * 0.4, -0.3, Math.sin(i * 3) * 0.4);
+    crown.add(dates);
+  }
+  g.add(crown);
   g.position.set(x, 0, z);
   return g;
 }
 
+// A curved, tapering palm frond as a flat strip (a central rib that arcs up
+// then droops, with width narrowing to the tip).
+function frondGeometry(len) {
+  const segs = 10;
+  const verts = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const x = t * len;
+    const y = Math.sin(t * Math.PI * 0.6) * 0.9 - t * t * 1.6; // up then droop
+    const w = 0.34 * Math.pow(1 - t, 0.6);
+    verts.push(x, y, -w, x, y, w);
+  }
+  for (let i = 0; i < segs; i++) {
+    const a = i * 2;
+    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function makeRock(x, z) {
-  const r = 0.4 + Math.random() * 1.2;
-  const rock = new THREE.Mesh(
-    new THREE.DodecahedronGeometry(r, 0),
-    new THREE.MeshStandardMaterial({ color: 0x8a7d68, roughness: 1, flatShading: true })
-  );
-  rock.position.set(x, r * 0.4, z);
+  const r = 0.4 + Math.random() * 1.3;
+  const geo = new THREE.DodecahedronGeometry(r, 1);
+  // Perturb vertices for an irregular, natural silhouette.
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const n = 0.78 + Math.random() * 0.44;
+    p.setXYZ(i, p.getX(i) * n, p.getY(i) * n, p.getZ(i) * n);
+  }
+  geo.computeVertexNormals();
+  const shade = 0x7d7058 + Math.floor(Math.random() * 0x101010);
+  const rock = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: shade, roughness: 1, flatShading: true }));
+  rock.position.set(x, r * 0.35, z);
   rock.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-  rock.scale.y = 0.7;
+  rock.scale.y = 0.6 + Math.random() * 0.2;
   rock.castShadow = rock.receiveShadow = true;
   return rock;
+}
+
+// A small dry desert shrub (a clump of thin blades).
+function makeShrub(x, z) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6e6a3a, roughness: 1, side: THREE.DoubleSide });
+  for (let i = 0; i < 7; i++) {
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.5 + Math.random() * 0.3, 4), mat);
+    blade.position.set((Math.random() - 0.5) * 0.3, 0.25, (Math.random() - 0.5) * 0.3);
+    blade.rotation.set((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5);
+    blade.castShadow = true;
+    g.add(blade);
+  }
+  g.position.set(x, 0, z);
+  return g;
 }
 
 // A robed Arabian figure for NPCs (thobe, arms, head, beard, draped keffiyeh
