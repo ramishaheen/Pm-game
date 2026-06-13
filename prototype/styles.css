@@ -70,6 +70,13 @@ kbd {
   background: var(--panel); border-radius: 6px; padding: 6px 16px; font-size: 15px;
 }
 
+#clickHint {
+  position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid rgba(201,164,92,0.4); border-radius: 8px;
+  padding: 10px 20px; font-size: 16px; color: var(--gold); animation: hintPulse 1.6s ease-in-out infinite;
+}
+@keyframes hintPulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
+
 /* Narration */
 #narration {
   position: fixed; left: 50%; bottom: 6%; transform: translateX(-50%);

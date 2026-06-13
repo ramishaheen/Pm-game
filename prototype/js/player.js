@@ -17,7 +17,7 @@ export class Player {
     this.speed = 4.2;
 
     this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 6; // interaction reach
+    this.raycaster.far = 60; // interaction reach (aim from across the courtyard)
 
     this._onMouseMove = this._onMouseMove.bind(this);
     this._onKeyDown = (e) => { this.keys[e.code] = true; };

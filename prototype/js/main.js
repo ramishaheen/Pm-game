@@ -46,6 +46,7 @@ const hud = document.getElementById("hud");
 const crosshair = document.getElementById("crosshair");
 const prompt = document.getElementById("prompt");
 const promptText = document.getElementById("promptText");
+const clickHint = document.getElementById("clickHint");
 
 let started = false;
 let lookedAt = null;
@@ -123,9 +124,15 @@ function tick(now) {
       prompt.classList.add("hidden");
     }
   } else {
+    lookedAt = null;
     crosshair.classList.remove("active");
     prompt.classList.add("hidden");
   }
+
+  // "Click to look around" hint when the mouse isn't captured mid-game.
+  const needClick = started && !narrationVisible() &&
+    pause.classList.contains("hidden") && !player.isLocked;
+  clickHint.classList.toggle("hidden", !needClick);
 
   composer.render();
   requestAnimationFrame(tick);
