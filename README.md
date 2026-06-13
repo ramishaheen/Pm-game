@@ -63,7 +63,13 @@ prototype/
 
 ## Run the prototype
 
-No build step. From the repo root:
+No build step. Easiest options:
+
+- **Windows:** double-click **`start.bat`** (or right-click `start.ps1` →
+  *Run with PowerShell*). It serves the prototype and opens your browser
+  automatically. Needs Python or Node.js installed.
+- **Any OS, manually:** from the repo root run a static server and open the
+  prototype path:
 
 ```bash
 # any static server works; e.g.:
@@ -71,7 +77,10 @@ python3 -m http.server 8000
 # then open http://localhost:8000/prototype/
 ```
 
-Or simply open `prototype/index.html` directly in a modern browser.
+> Serve it over `http://` (the launchers do this). Opening
+> `prototype/index.html` directly via `file://` fails in most browsers, because
+> ES-module imports and pointer-lock are blocked on the `file:` scheme. An
+> internet connection is needed on first load (Three.js loads from a CDN).
 
 **Controls:** `WASD` move · mouse look (click to capture) · `E` interact ·
 `Space` advance narration · `Esc` menu.
