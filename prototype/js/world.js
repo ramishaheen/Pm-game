@@ -248,36 +248,86 @@ function makeRock(x, z) {
   return rock;
 }
 
-// A simple, dignified stylized human figure for NPCs (robe + head + cloth).
-function makePerson(color, id, name) {
+// A robed Arabian figure for NPCs (thobe, arms, head, beard, draped keffiyeh
+// with an agal band). Hand-built and low-poly — dignified but not a scanned
+// character model; true realism lives in the asset/Unreal path (docs/07).
+const SKIN_TONES = [0xb07a4f, 0xc28e5e, 0x9c6a42, 0xd0a070];
+
+function makePerson(robeColor, id, name) {
   const g = new THREE.Group();
-  const robe = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.42, 0.8, 1.7, 16),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.92 })
+  const robeMat = new THREE.MeshStandardMaterial({ color: robeColor, roughness: 0.95 });
+  const skinMat = new THREE.MeshStandardMaterial({
+    color: SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)], roughness: 0.7,
+  });
+  const clothMat = new THREE.MeshStandardMaterial({ color: 0xece4d2, roughness: 0.9 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 });
+
+  // --- Thobe (flowing robe) via a lathed profile that flares at the hem ---
+  const profile = [
+    [0.06, 0.0], [0.5, 0.0], [0.46, 0.08], [0.4, 0.5],
+    [0.34, 1.0], [0.3, 1.35], [0.26, 1.55], [0.15, 1.62],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const robe = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), robeMat);
+  robe.castShadow = robe.receiveShadow = true;
+  g.add(robe);
+
+  // --- Arms (down along the body) + hands ---
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.11, 0.95, 10), robeMat);
+    arm.position.set(side * 0.26, 1.05, 0);
+    arm.rotation.z = side * 0.22;
+    arm.castShadow = true;
+    g.add(arm);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 10), skinMat);
+    hand.position.set(side * 0.36, 0.58, 0);
+    hand.castShadow = true;
+    g.add(hand);
+  }
+
+  // --- Neck + head ---
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.16, 10), skinMat);
+  neck.position.y = 1.66; g.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 24), skinMat);
+  head.scale.set(0.92, 1.05, 0.95);
+  head.position.y = 1.86; head.castShadow = true;
+  g.add(head);
+  // Nose, for a bit of facial relief.
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.12, 8), skinMat);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.set(0, 1.85, 0.19);
+  g.add(nose);
+  // Beard (front-lower face).
+  const beard = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 16, 16, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.55),
+    darkMat
   );
-  robe.position.y = 0.95; robe.castShadow = robe.receiveShadow = true;
-  const shoulders = new THREE.Mesh(
-    new THREE.SphereGeometry(0.42, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.92 })
+  beard.scale.set(1.0, 1.1, 0.8);
+  beard.position.set(0, 1.82, 0.04);
+  g.add(beard);
+
+  // --- Keffiyeh: cap + side drapes + agal band ---
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.225, 20, 16, 0, Math.PI * 2, 0, Math.PI / 1.7),
+    clothMat
   );
-  shoulders.position.y = 1.78; shoulders.castShadow = true;
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.26, 20, 20),
-    new THREE.MeshStandardMaterial({ color: 0xc6a279, roughness: 0.8 })
-  );
-  head.position.y = 2.06; head.castShadow = true;
-  const headcloth = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 20, 16, 0, Math.PI * 2, 0, Math.PI / 1.7),
-    new THREE.MeshStandardMaterial({ color: lighten(color), roughness: 0.9 })
-  );
-  headcloth.position.y = 2.12; headcloth.castShadow = true;
-  g.add(robe, shoulders, head, headcloth);
+  cap.position.y = 1.9; cap.castShadow = true;
+  g.add(cap);
+  for (const side of [-1, 1]) {
+    const drape = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.45, 0.3), clothMat);
+    drape.position.set(side * 0.2, 1.74, -0.02);
+    drape.rotation.z = side * 0.15;
+    drape.castShadow = true;
+    g.add(drape);
+  }
+  const backDrape = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.4, 0.04), clothMat);
+  backDrape.position.set(0, 1.74, -0.2);
+  backDrape.castShadow = true;
+  g.add(backDrape);
+  const agal = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.028, 8, 24), darkMat);
+  agal.rotation.x = Math.PI / 2;
+  agal.position.y = 2.0;
+  g.add(agal);
+
   g.userData = { id, name };
   return g;
-}
-
-function lighten(hex) {
-  const c = new THREE.Color(hex);
-  c.offsetHSL(0, -0.1, 0.18);
-  return c.getHex();
 }
