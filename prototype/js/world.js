@@ -4,6 +4,17 @@
 // true AAA target lives in the Unreal path (docs/07).
 import * as THREE from "three";
 import { Sky } from "three/addons/objects/Sky.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+// Real character model loaded for the NPCs. This default is a realistic,
+// textured, animated human served from a CORS-enabled CDN (jsDelivr → the
+// three.js example assets). It is a *modern* figure — chosen for realism, not
+// historical accuracy. Swap this URL for any .glb (e.g. a period-accurate robed
+// character you obtain) and the loader below auto-fits and anchors it.
+const CHARACTER_MODEL_URL =
+  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/Soldier.glb";
+
+const gltfLoader = new GLTFLoader();
 
 export function buildWorld() {
   const scene = new THREE.Scene();
@@ -112,15 +123,16 @@ export function buildWorld() {
 
   // --- Clan elders (interactable NPCs) ---
   const interactables = [];
-  const elderA = makePerson(0x4f6f8c, "elder_a", "Elder of Banū ʿAbd al-Dār");
+  const mixers = [];
+  const elderA = makePerson(0x4f6f8c, "elder_a", "Elder of Banū ʿAbd al-Dār", mixers);
   elderA.position.set(-9, 0, -8);
-  elderA.rotation.y = Math.PI * 0.15;
+  elderA.rotation.y = Math.PI; // face the player (who arrives from +z)
   scene.add(elderA);
   interactables.push(elderA);
 
-  const elderB = makePerson(0x7c4f3f, "elder_b", "Elder of Banū ʿAdī");
+  const elderB = makePerson(0x7c4f3f, "elder_b", "Elder of Banū ʿAdī", mixers);
   elderB.position.set(9, 0, -8);
-  elderB.rotation.y = -Math.PI * 0.15;
+  elderB.rotation.y = Math.PI;
   scene.add(elderB);
   interactables.push(elderB);
 
@@ -142,7 +154,7 @@ export function buildWorld() {
   scene.add(stoneSpot);
   interactables.push(stoneSpot);
 
-  return { scene, interactables };
+  return { scene, interactables, mixers };
 }
 
 // ---- Procedural textures (no external asset files needed) ----
@@ -253,7 +265,50 @@ function makeRock(x, z) {
 // character model; true realism lives in the asset/Unreal path (docs/07).
 const SKIN_TONES = [0xb07a4f, 0xc28e5e, 0x9c6a42, 0xd0a070];
 
-function makePerson(robeColor, id, name) {
+// Interactable NPC: a group carrying userData (so raycasting/interaction works
+// immediately), holding a hand-built robed figure as a fallback. We then try to
+// load a real 3D character model and, on success, swap it in. If the load fails
+// (offline/CORS), the fallback simply remains — interaction is unaffected.
+function makePerson(robeColor, id, name, mixers) {
+  const g = new THREE.Group();
+  g.userData = { id, name };
+
+  const fallback = makeFallbackFigure(robeColor);
+  g.add(fallback);
+
+  gltfLoader.load(
+    CHARACTER_MODEL_URL,
+    (gltf) => {
+      const model = gltf.scene;
+      model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+
+      // Fit to ~1.8 m tall and anchor feet at y=0, centered on x/z.
+      let box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      model.scale.setScalar(1.8 / (size.y || 1));
+      box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.set(-center.x, -box.min.y, -center.z);
+
+      g.remove(fallback);
+      g.add(model);
+
+      if (gltf.animations && gltf.animations.length) {
+        const mixer = new THREE.AnimationMixer(model);
+        const clip = THREE.AnimationClip.findByName(gltf.animations, "Idle") || gltf.animations[0];
+        mixer.clipAction(clip).play();
+        mixers.push(mixer);
+      }
+    },
+    undefined,
+    (err) => { console.warn("[Nūr] character model failed to load; using fallback figure.", err); }
+  );
+
+  return g;
+}
+
+// The hand-built robed figure (used as a fallback / when offline).
+function makeFallbackFigure(robeColor) {
   const g = new THREE.Group();
   const robeMat = new THREE.MeshStandardMaterial({ color: robeColor, roughness: 0.95 });
   const skinMat = new THREE.MeshStandardMaterial({

@@ -21,7 +21,7 @@ renderer.toneMappingExposure = 0.55;
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 2000);
 
-const { scene, interactables } = buildWorld();
+const { scene, interactables, mixers } = buildWorld();
 const player = new Player(camera, canvas);
 const narrative = new NarrativeEngine();
 
@@ -108,6 +108,7 @@ function tick(now) {
 
   syncControlState();
   player.update(dt);
+  for (const m of mixers) m.update(dt); // drive character idle animations
 
   // Gaze: highlight interactables and show the prompt.
   if (started && player.enabled) {
