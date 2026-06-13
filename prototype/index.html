@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nūr — Prototype: "Al-Amīn"</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Three.js as an ES module via import map; no build step required. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- Main menu -->
+  <div id="menu" class="overlay">
+    <div class="menu-inner">
+      <h1>NŪR</h1>
+      <p class="subtitle">A first-person journey through the life of Prophet Muhammad ﷺ</p>
+      <div class="vignette-card">
+        <h2>Prototype vignette — “Al-Amīn” (The Trustworthy)</h2>
+        <p>
+          Mecca, c. 605 CE. A flood has damaged the Kaʿba. As the clans rebuild it,
+          they fall into a bitter dispute over who will have the honor of setting
+          the sacred Black Stone in place — and they are close to bloodshed.
+          They have agreed to accept the judgment of the next person to arrive.
+          That person is you.
+        </p>
+        <p class="note">
+          This demo shows the game’s non-combat, conscience-driven core: you resolve a
+          conflict with wisdom, not force. You are present in first person, with
+          <strong>no avatar and no depiction</strong> — you experience the world through
+          his eyes. His words appear as on-screen narration drawn from historical tradition.
+        </p>
+      </div>
+      <button id="beginBtn" class="primary">Begin</button>
+      <p class="content-note">
+        Content note: a respectful historical experience. Press <kbd>Esc</kbd> at any time to pause.
+      </p>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="overlay hidden">
+    <div class="menu-inner">
+      <h2>Paused</h2>
+      <button id="resumeBtn" class="primary">Resume</button>
+      <p class="content-note">Click “Resume”, then click the scene to recapture the mouse.</p>
+    </div>
+  </div>
+
+  <!-- In-game HUD -->
+  <div id="hud" class="hidden">
+    <div id="objective"><span class="obj-label">Objective</span><span id="objText"></span></div>
+    <div id="crosshair"></div>
+    <div id="prompt" class="hidden"><kbd>E</kbd> <span id="promptText"></span></div>
+  </div>
+
+  <!-- Narration / dialogue box -->
+  <div id="narration" class="hidden">
+    <div class="narr-inner">
+      <div id="speaker"></div>
+      <div id="line"></div>
+      <div id="choices"></div>
+      <div id="advance" class="hidden"><kbd>Space</kbd> continue</div>
+    </div>
+  </div>
+
+  <canvas id="scene"></canvas>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

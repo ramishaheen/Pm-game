@@ -1,0 +1,93 @@
+:root {
+  --sand: #e9d8b4;
+  --ink: #1c160c;
+  --gold: #c9a45c;
+  --night: #0d1320;
+  --panel: rgba(13, 19, 32, 0.86);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; overflow: hidden; background: #000; font-family: Georgia, "Times New Roman", serif; color: #f3ead6; }
+
+canvas#scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+
+.hidden { display: none !important; }
+
+/* Overlays (menu / pause) */
+.overlay {
+  position: fixed; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 30%, #1a2030 0%, #05070d 100%);
+}
+.menu-inner { max-width: 680px; padding: 40px; text-align: center; }
+.menu-inner h1 {
+  font-size: 84px; letter-spacing: 14px; color: var(--gold);
+  text-shadow: 0 0 40px rgba(201, 164, 92, 0.5); margin-bottom: 8px;
+}
+.subtitle { font-style: italic; opacity: 0.85; margin-bottom: 28px; }
+.vignette-card {
+  text-align: left; background: rgba(0,0,0,0.35); border: 1px solid rgba(201,164,92,0.35);
+  border-radius: 10px; padding: 22px 26px; margin-bottom: 26px; line-height: 1.6;
+}
+.vignette-card h2 { color: var(--gold); font-size: 20px; margin-bottom: 12px; }
+.vignette-card p { margin-bottom: 12px; }
+.vignette-card .note { font-size: 14px; opacity: 0.82; }
+
+button.primary {
+  font-family: inherit; font-size: 20px; letter-spacing: 2px;
+  color: var(--night); background: var(--gold); border: none; border-radius: 6px;
+  padding: 12px 44px; cursor: pointer; transition: transform .1s, box-shadow .2s;
+  box-shadow: 0 0 24px rgba(201,164,92,0.35);
+}
+button.primary:hover { transform: translateY(-1px); box-shadow: 0 0 34px rgba(201,164,92,0.6); }
+.content-note { margin-top: 22px; font-size: 13px; opacity: 0.6; }
+
+kbd {
+  font-family: inherit; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px; padding: 1px 7px; font-size: 0.85em;
+}
+
+/* HUD */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+#objective {
+  position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+  background: var(--panel); border: 1px solid rgba(201,164,92,0.4); border-radius: 8px;
+  padding: 8px 18px; max-width: 70vw; text-align: center;
+}
+.obj-label { display: block; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-bottom: 2px; }
+#objText { font-size: 16px; }
+
+#crosshair {
+  position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+  margin: -5px 0 0 -5px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.55); transition: all .15s;
+}
+#crosshair.active { border-color: var(--gold); box-shadow: 0 0 12px var(--gold); transform: scale(1.4); }
+
+#prompt {
+  position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%);
+  background: var(--panel); border-radius: 6px; padding: 6px 16px; font-size: 15px;
+}
+
+/* Narration */
+#narration {
+  position: fixed; left: 50%; bottom: 6%; transform: translateX(-50%);
+  z-index: 20; width: min(860px, 92vw); pointer-events: auto;
+}
+.narr-inner {
+  background: var(--panel); border: 1px solid rgba(201,164,92,0.5); border-radius: 12px;
+  padding: 22px 28px; box-shadow: 0 10px 50px rgba(0,0,0,0.6);
+}
+#speaker { color: var(--gold); font-size: 14px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
+#line { font-size: 20px; line-height: 1.65; min-height: 1.6em; }
+#line.revelation { color: #fff; text-shadow: 0 0 18px rgba(255,255,255,0.8); font-style: italic; }
+#choices { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.choice {
+  font-family: inherit; text-align: left; font-size: 16px; color: #f3ead6;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(201,164,92,0.35);
+  border-radius: 8px; padding: 12px 16px; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.choice:hover { background: rgba(201,164,92,0.18); border-color: var(--gold); }
+.choice .src { display: block; margin-top: 6px; font-size: 12px; opacity: 0.6; font-style: italic; }
+#advance { margin-top: 14px; text-align: right; font-size: 13px; opacity: 0.7; }
