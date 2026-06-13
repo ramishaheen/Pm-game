@@ -1,123 +1,233 @@
-// world.js — builds the scene: desert, light, the Kaʿba, palms, and the clan
-// elders (NPCs other than the Prophet, who is never depicted — see docs R1/R4).
+// world.js — builds the scene: realistic sky + sun, textured sand, the Kaʿba,
+// palms, rocks, and the clan elders (NPCs other than the Prophet, who is never
+// depicted — see docs R1/R4). Visual fidelity is tuned for atmosphere; the
+// true AAA target lives in the Unreal path (docs/07).
 import * as THREE from "three";
+import { Sky } from "three/addons/objects/Sky.js";
 
 export function buildWorld() {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xbfa97a);
-  scene.fog = new THREE.Fog(0xc9b487, 40, 140);
+  // Warm horizon haze that matches the sky so distance fades naturally.
+  scene.fog = new THREE.Fog(0xdcc6a0, 60, 240);
 
-  // --- Lighting: warm desert sun ("nūr" motif, see docs/07) ---
-  const sun = new THREE.DirectionalLight(0xfff1d0, 2.2);
-  sun.position.set(30, 50, 20);
+  // --- Sky + sun (atmospheric scattering) ---
+  const sky = new Sky();
+  sky.scale.setScalar(12000);
+  scene.add(sky);
+  const sunDir = new THREE.Vector3();
+  const u = sky.material.uniforms;
+  u["turbidity"].value = 6;
+  u["rayleigh"].value = 1.2;
+  u["mieCoefficient"].value = 0.006;
+  u["mieDirectionalG"].value = 0.8;
+  const elevation = 24, azimuth = 130; // warm mid-morning, long soft shadows
+  const phi = THREE.MathUtils.degToRad(90 - elevation);
+  const theta = THREE.MathUtils.degToRad(azimuth);
+  sunDir.setFromSphericalCoords(1, phi, theta);
+  u["sunPosition"].value.copy(sunDir);
+
+  // --- Lighting ---
+  const sun = new THREE.DirectionalLight(0xfff2d6, 3.0);
+  sun.position.copy(sunDir).multiplyScalar(120);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -60; sun.shadow.camera.right = 60;
-  sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 260;
+  sun.shadow.camera.left = -70; sun.shadow.camera.right = 70;
+  sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xffe9c0, 0x6b5836, 0.7));
+  // Sky fill (warm bounce from above, cool from the sand below).
+  scene.add(new THREE.HemisphereLight(0xbcd2ff, 0xb89a63, 0.45));
 
-  // --- Ground (sand) ---
+  // --- Ground (textured sand) ---
+  const sandTex = sandTexture();
+  sandTex.wrapS = sandTex.wrapT = THREE.RepeatWrapping;
+  sandTex.repeat.set(60, 60);
+  sandTex.anisotropy = 8;
+  const sandBump = sandTexture(true);
+  sandBump.wrapS = sandBump.wrapT = THREE.RepeatWrapping;
+  sandBump.repeat.set(60, 60);
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(400, 400),
-    new THREE.MeshStandardMaterial({ color: 0xd9c08a, roughness: 1 })
+    new THREE.PlaneGeometry(600, 600, 1, 1),
+    new THREE.MeshStandardMaterial({
+      map: sandTex, bumpMap: sandBump, bumpScale: 0.4,
+      color: 0xe7cf9d, roughness: 1, metalness: 0,
+    })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Low surrounding hills (Mecca's valley), for silhouette only.
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const hill = new THREE.Mesh(
-      new THREE.ConeGeometry(18 + Math.random() * 10, 14 + Math.random() * 8, 6),
-      new THREE.MeshStandardMaterial({ color: 0xb39a6a, roughness: 1 })
+  // Distant dunes for a horizon silhouette.
+  const duneMat = new THREE.MeshStandardMaterial({ color: 0xcdb079, roughness: 1 });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
+    const r = 150 + Math.random() * 40;
+    const dune = new THREE.Mesh(
+      new THREE.SphereGeometry(30 + Math.random() * 25, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      duneMat
     );
-    hill.position.set(Math.cos(a) * 95, 4, Math.sin(a) * 95);
-    hill.castShadow = hill.receiveShadow = true;
-    scene.add(hill);
+    dune.position.set(Math.cos(a) * r, -8 - Math.random() * 6, Math.sin(a) * r);
+    dune.scale.y = 0.5;
+    dune.receiveShadow = true;
+    scene.add(dune);
   }
 
-  // --- The Kaʿba (placeholder cube, draped) ---
+  // --- The Kaʿba (draped cube) ---
+  const clothTex = clothTexture();
+  clothTex.wrapS = clothTex.wrapT = THREE.RepeatWrapping;
+  clothTex.repeat.set(2, 3);
   const kaaba = new THREE.Mesh(
     new THREE.BoxGeometry(9, 11, 9),
-    new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.7, metalness: 0.05 })
+    new THREE.MeshStandardMaterial({ map: clothTex, color: 0x14110d, roughness: 0.85, metalness: 0.0 })
   );
   kaaba.position.set(0, 5.5, -22);
   kaaba.castShadow = kaaba.receiveShadow = true;
   kaaba.userData = { id: "kaaba", name: "The Kaʿba" };
   scene.add(kaaba);
-  // A gold band, evoking the kiswah's embroidery.
+  // Gold embroidery band — emissive so it catches the bloom (the "nūr" motif).
   const band = new THREE.Mesh(
-    new THREE.BoxGeometry(9.2, 1.2, 9.2),
-    new THREE.MeshStandardMaterial({ color: 0xc9a45c, metalness: 0.6, roughness: 0.3 })
+    new THREE.BoxGeometry(9.25, 1.3, 9.25),
+    new THREE.MeshStandardMaterial({
+      color: 0xc9a45c, metalness: 0.85, roughness: 0.25,
+      emissive: 0x6b4f1e, emissiveIntensity: 0.6,
+    })
   );
-  band.position.set(0, 8.6, -22);
+  band.position.set(0, 8.7, -22);
+  band.castShadow = true;
   scene.add(band);
 
-  // Date palms scattered around.
-  const palmGroup = new THREE.Group();
-  for (let i = 0; i < 14; i++) {
-    palmGroup.add(makePalm(
-      (Math.random() - 0.5) * 120,
-      (Math.random() - 0.5) * 120
-    ));
+  // --- Palms and rocks ---
+  const flora = new THREE.Group();
+  for (let i = 0; i < 22; i++) {
+    const x = (Math.random() - 0.5) * 150, z = (Math.random() - 0.5) * 150;
+    if (Math.hypot(x, z) < 14) continue; // keep the plaza clear
+    flora.add(makePalm(x, z));
   }
-  scene.add(palmGroup);
+  for (let i = 0; i < 30; i++) {
+    flora.add(makeRock((Math.random() - 0.5) * 160, (Math.random() - 0.5) * 160));
+  }
+  scene.add(flora);
 
   // --- Clan elders (interactable NPCs) ---
   const interactables = [];
-  const elderA = makePerson(0x5a7d9a, "elder_a", "Elder of Banū ʿAbd al-Dār");
+  const elderA = makePerson(0x4f6f8c, "elder_a", "Elder of Banū ʿAbd al-Dār");
   elderA.position.set(-9, 0, -8);
   elderA.rotation.y = Math.PI * 0.15;
   scene.add(elderA);
   interactables.push(elderA);
 
-  const elderB = makePerson(0x8a5a4a, "elder_b", "Elder of Banū ʿAdī");
+  const elderB = makePerson(0x7c4f3f, "elder_b", "Elder of Banū ʿAdī");
   elderB.position.set(9, 0, -8);
   elderB.rotation.y = -Math.PI * 0.15;
   scene.add(elderB);
   interactables.push(elderB);
 
-  // The Black Stone's resting place by the Kaʿba (the decision point).
-  const stoneSpot = makePerson(0x444444, "kaaba", "The Black Stone");
-  // Represent the stone as a small dark plinth instead of a person.
-  stoneSpot.clear();
+  // The Black Stone on a low plinth (the decision point).
+  const stoneSpot = new THREE.Group();
   const plinth = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.6, 0.7, 1.0, 12),
-    new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5 })
+    new THREE.CylinderGeometry(0.7, 0.85, 1.0, 16),
+    new THREE.MeshStandardMaterial({ color: 0x6b6258, roughness: 0.7 })
   );
-  plinth.position.y = 0.5;
+  plinth.position.y = 0.5; plinth.castShadow = plinth.receiveShadow = true;
   const stone = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5, 16, 16),
-    new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.25, metalness: 0.2 })
+    new THREE.IcosahedronGeometry(0.5, 1),
+    new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.3 })
   );
-  stone.position.y = 1.2;
+  stone.position.y = 1.25; stone.castShadow = true;
   stoneSpot.add(plinth, stone);
   stoneSpot.position.set(0, 0, -16);
   stoneSpot.userData = { id: "stone", name: "The Black Stone" };
-  stoneSpot.castShadow = true;
   scene.add(stoneSpot);
   interactables.push(stoneSpot);
 
   return { scene, interactables };
 }
 
+// ---- Procedural textures (no external asset files needed) ----
+function sandTexture(asBump = false) {
+  const s = 512;
+  const c = document.createElement("canvas");
+  c.width = c.height = s;
+  const g = c.getContext("2d");
+  g.fillStyle = asBump ? "#808080" : "#e3cb98";
+  g.fillRect(0, 0, s, s);
+  // Fine grain.
+  for (let i = 0; i < 60000; i++) {
+    const x = Math.random() * s, y = Math.random() * s;
+    const v = Math.random();
+    if (asBump) {
+      const l = Math.floor(110 + v * 70);
+      g.fillStyle = `rgb(${l},${l},${l})`;
+    } else {
+      g.fillStyle = v > 0.5 ? `rgba(210,188,140,0.5)` : `rgba(160,135,90,0.35)`;
+    }
+    g.fillRect(x, y, 1.4, 1.4);
+  }
+  // Soft wind ripples.
+  g.globalAlpha = asBump ? 0.5 : 0.12;
+  for (let y = 0; y < s; y += 6) {
+    g.strokeStyle = asBump ? "#6e6e6e" : "#9c7f54";
+    g.beginPath();
+    for (let x = 0; x <= s; x += 8) {
+      const yy = y + Math.sin(x * 0.05 + y) * 2;
+      x === 0 ? g.moveTo(x, yy) : g.lineTo(x, yy);
+    }
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  if (!asBump) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function clothTexture() {
+  const s = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = s;
+  const g = c.getContext("2d");
+  g.fillStyle = "#15120d";
+  g.fillRect(0, 0, s, s);
+  // Subtle woven weave.
+  g.globalAlpha = 0.25;
+  for (let i = 0; i < s; i += 3) {
+    g.strokeStyle = "#241d12";
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i, s); g.stroke();
+    g.strokeStyle = "#0b0906";
+    g.beginPath(); g.moveTo(0, i); g.lineTo(s, i); g.stroke();
+  }
+  // Faint gold geometric motif.
+  g.globalAlpha = 0.5;
+  g.strokeStyle = "#7a5c25";
+  for (let i = 0; i < 6; i++) {
+    g.beginPath();
+    g.arc((i + 0.5) * (s / 6), s / 2, 10, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function makePalm(x, z) {
   const g = new THREE.Group();
+  const h = 5 + Math.random() * 2.5;
   const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.25, 0.4, 6, 7),
-    new THREE.MeshStandardMaterial({ color: 0x6b4f2a, roughness: 1 })
+    new THREE.CylinderGeometry(0.22, 0.4, h, 8),
+    new THREE.MeshStandardMaterial({ color: 0x6e5230, roughness: 1 })
   );
-  trunk.position.y = 3; trunk.castShadow = true;
+  trunk.position.y = h / 2; trunk.castShadow = true;
+  trunk.rotation.z = (Math.random() - 0.5) * 0.15;
   g.add(trunk);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4c6b2f, roughness: 1, side: THREE.DoubleSide });
-  for (let i = 0; i < 7; i++) {
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.5, 4, 4), leafMat);
-    leaf.position.y = 6;
-    leaf.rotation.z = Math.PI / 2.4;
-    leaf.rotation.y = (i / 7) * Math.PI * 2;
-    leaf.translateY(1.8);
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f6b2e, roughness: 0.85, side: THREE.DoubleSide });
+  for (let i = 0; i < 9; i++) {
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.4, 4), leafMat);
+    leaf.position.y = h;
+    leaf.rotation.z = Math.PI / 2.6 + (Math.random() - 0.5) * 0.2;
+    leaf.rotation.y = (i / 9) * Math.PI * 2;
+    leaf.translateY(1.5);
     leaf.castShadow = true;
     g.add(leaf);
   }
@@ -125,25 +235,49 @@ function makePalm(x, z) {
   return g;
 }
 
-// A simple, dignified stylized human figure for NPCs (robe + head).
+function makeRock(x, z) {
+  const r = 0.4 + Math.random() * 1.2;
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(r, 0),
+    new THREE.MeshStandardMaterial({ color: 0x8a7d68, roughness: 1, flatShading: true })
+  );
+  rock.position.set(x, r * 0.4, z);
+  rock.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+  rock.scale.y = 0.7;
+  rock.castShadow = rock.receiveShadow = true;
+  return rock;
+}
+
+// A simple, dignified stylized human figure for NPCs (robe + head + cloth).
 function makePerson(color, id, name) {
   const g = new THREE.Group();
   const robe = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.5, 0.85, 1.7, 12),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
+    new THREE.CylinderGeometry(0.42, 0.8, 1.7, 16),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.92 })
   );
-  robe.position.y = 0.95; robe.castShadow = true;
+  robe.position.y = 0.95; robe.castShadow = robe.receiveShadow = true;
+  const shoulders = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.92 })
+  );
+  shoulders.position.y = 1.78; shoulders.castShadow = true;
   const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.28, 16, 16),
-    new THREE.MeshStandardMaterial({ color: 0xcaa472, roughness: 0.8 })
+    new THREE.SphereGeometry(0.26, 20, 20),
+    new THREE.MeshStandardMaterial({ color: 0xc6a279, roughness: 0.8 })
   );
-  head.position.y = 2.0; head.castShadow = true;
-  const cloth = new THREE.Mesh(
-    new THREE.SphereGeometry(0.32, 16, 16, 0, Math.PI * 2, 0, Math.PI / 1.8),
-    new THREE.MeshStandardMaterial({ color: color, roughness: 0.9 })
+  head.position.y = 2.06; head.castShadow = true;
+  const headcloth = new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 20, 16, 0, Math.PI * 2, 0, Math.PI / 1.7),
+    new THREE.MeshStandardMaterial({ color: lighten(color), roughness: 0.9 })
   );
-  cloth.position.y = 2.05;
-  g.add(robe, head, cloth);
+  headcloth.position.y = 2.12; headcloth.castShadow = true;
+  g.add(robe, shoulders, head, headcloth);
   g.userData = { id, name };
   return g;
+}
+
+function lighten(hex) {
+  const c = new THREE.Color(hex);
+  c.offsetHSL(0, -0.1, 0.18);
+  return c.getHex();
 }

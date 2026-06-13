@@ -1,5 +1,9 @@
 // main.js — bootstrap: renderer, menus, game loop, interaction wiring.
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { buildWorld } from "./world.js";
 import { Player } from "./player.js";
 import { NarrativeEngine } from "./narrative.js";
@@ -11,12 +15,29 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Filmic tone-mapping for realistic light response (works with the Sky's HDR range).
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.55;
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 2000);
 
 const { scene, interactables } = buildWorld();
 const player = new Player(camera, canvas);
 const narrative = new NarrativeEngine();
+
+// Post-processing: MSAA render target + a gentle bloom for the gold/light.
+const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { samples: 4 });
+const composer = new EffectComposer(renderer, renderTarget);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.35, // strength — subtle
+  0.7,  // radius
+  0.85  // threshold — only the brightest (sky, gold) bloom
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
 
 // UI refs
 const menu = document.getElementById("menu");
@@ -106,7 +127,7 @@ function tick(now) {
     prompt.classList.add("hidden");
   }
 
-  renderer.render(scene, camera);
+  composer.render();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
@@ -115,4 +136,6 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloom.setSize(window.innerWidth, window.innerHeight);
 });
