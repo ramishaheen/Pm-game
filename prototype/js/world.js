@@ -533,6 +533,5 @@ function makeFallbackFigure(robeColor) {
   agal.position.y = 2.0;
   g.add(agal);
 
-  g.userData = { id, name };
   return g;
 }
