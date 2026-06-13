@@ -21,7 +21,20 @@ renderer.toneMappingExposure = 0.55;
 
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 2000);
 
-const { scene, interactables, mixers } = buildWorld();
+const world = buildWorld();
+const { scene, interactables, mixers } = world;
+
+// Image-based lighting: bake an environment map from the sky so PBR materials
+// receive realistic ambient light and subtle reflections.
+const pmrem = new THREE.PMREMGenerator(renderer);
+{
+  const envScene = new THREE.Scene();
+  scene.remove(world.sky);
+  envScene.add(world.sky);
+  scene.environment = pmrem.fromScene(envScene).texture;
+  envScene.remove(world.sky);
+  scene.add(world.sky);
+}
 const player = new Player(camera, canvas);
 const narrative = new NarrativeEngine();
 
@@ -109,6 +122,7 @@ function tick(now) {
   syncControlState();
   player.update(dt);
   for (const m of mixers) m.update(dt); // drive character idle animations
+  world.update(now * 0.001, dt);        // palm sway + drifting dust
 
   // Gaze: highlight interactables and show the prompt.
   if (started && player.enabled) {

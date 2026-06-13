@@ -25,9 +25,9 @@ const gltfLoader = new GLTFLoader();
 
 // Scatter palms across the given [x,z] positions. Uses a real model if
 // PALM_MODEL_URL is set, otherwise the procedural makePalm().
-function addPalms(parent, spots) {
+function addPalms(parent, spots, wind) {
   if (!PALM_MODEL_URL) {
-    spots.forEach(([x, z]) => parent.add(makePalm(x, z)));
+    spots.forEach(([x, z]) => parent.add(makePalm(x, z, wind)));
     return;
   }
   // Placeholders first, so something is there immediately.
@@ -148,13 +148,14 @@ export function buildWorld() {
 
   // --- Palms, rocks, shrubs ---
   const flora = new THREE.Group();
+  const wind = []; // palm crowns to sway
   const palmSpots = [];
   for (let i = 0; i < 22; i++) {
     const x = (Math.random() - 0.5) * 150, z = (Math.random() - 0.5) * 150;
     if (Math.hypot(x, z) < 14) continue; // keep the plaza clear
     palmSpots.push([x, z]);
   }
-  addPalms(flora, palmSpots);
+  addPalms(flora, palmSpots, wind);
   for (let i = 0; i < 34; i++) {
     flora.add(makeRock((Math.random() - 0.5) * 160, (Math.random() - 0.5) * 160));
   }
@@ -198,7 +199,40 @@ export function buildWorld() {
   scene.add(stoneSpot);
   interactables.push(stoneSpot);
 
-  return { scene, interactables, mixers };
+  // --- Drifting dust motes in the sunlight ---
+  const dustCount = 450;
+  const dustPos = new Float32Array(dustCount * 3);
+  for (let i = 0; i < dustCount; i++) {
+    dustPos[i * 3] = (Math.random() - 0.5) * 170;
+    dustPos[i * 3 + 1] = Math.random() * 28;
+    dustPos[i * 3 + 2] = (Math.random() - 0.5) * 170;
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+    color: 0xeaddc0, size: 0.09,
+    transparent: true, opacity: 0.4, depthWrite: false, sizeAttenuation: true,
+  }));
+  scene.add(dust);
+
+  // Per-frame animation: palm sway + dust drift.
+  function update(t, dt) {
+    for (const w of wind) {
+      w.obj.rotation.z = w.baseZ + Math.sin(t * 0.8 + w.phase) * 0.025;
+      w.obj.rotation.x = Math.sin(t * 0.6 + w.phase) * 0.02;
+    }
+    const p = dust.geometry.attributes.position;
+    for (let i = 0; i < dustCount; i++) {
+      let x = p.getX(i) + dt * 0.7;
+      let y = p.getY(i) + Math.sin(t * 0.5 + i) * dt * 0.25;
+      if (x > 85) x -= 170;
+      if (y > 28) y = 0; else if (y < 0) y = 28;
+      p.setX(i, x); p.setY(i, y);
+    }
+    p.needsUpdate = true;
+  }
+
+  return { scene, interactables, mixers, sky, update };
 }
 
 // ---- Procedural textures (no external asset files needed) ----
@@ -270,7 +304,7 @@ function clothTexture() {
 const PALM_BARK = new THREE.MeshStandardMaterial({ color: 0x7a5a33, roughness: 1 });
 const PALM_LEAF = new THREE.MeshStandardMaterial({ color: 0x55732f, roughness: 0.8, side: THREE.DoubleSide });
 
-function makePalm(x, z) {
+function makePalm(x, z, wind) {
   const g = new THREE.Group();
   const h = 5 + Math.random() * 2.5;
   const lean = (Math.random() - 0.5) * 0.5;
@@ -314,6 +348,7 @@ function makePalm(x, z) {
     crown.add(dates);
   }
   g.add(crown);
+  if (wind) wind.push({ obj: crown, baseZ: -tilt, phase: Math.random() * Math.PI * 2 });
   g.position.set(x, 0, z);
   return g;
 }
